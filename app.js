@@ -1,275 +1,423 @@
-(() => {
-  const fileAInput = document.getElementById('fileA');
-  const fileBInput = document.getElementById('fileB');
-  const fileAName = document.getElementById('fileAName');
-  const fileBName = document.getElementById('fileBName');
-  const createBtn = document.getElementById('createMashup');
-  const downloadBtn = document.getElementById('downloadWav');
-  const previewEl = document.getElementById('preview');
-  const bassSlider = document.getElementById('bassGain');
-  const trebleSlider = document.getElementById('trebleGain');
-  const bassValue = document.getElementById('bassValue');
-  const trebleValue = document.getElementById('trebleValue');
-  const messagesEl = document.getElementById('messages');
+        const fileInput = document.getElementById('fileInput');
+        const tracksListEl = document.getElementById('tracksList');
+        const trackCountEl = document.getElementById('trackCount');
+        const renderBtn = document.getElementById('renderBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const infoText = document.getElementById('infoText');
+        const durationInput = document.getElementById('duration');
+        const bassSlider = document.getElementById('bassBoost');
+        const bassValue = document.getElementById('bassBoostValue');
+        const echoSlider = document.getElementById('echoAmount');
+        const echoValue = document.getElementById('echoValue');
+        const flangerBtn = document.getElementById('flangerBtn');
+        const reverbBtn = document.getElementById('reverbBtn');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const playerSection = document.getElementById('playerSection');
+        const previewAudioEl = document.getElementById('preview');
 
-  let audioContext;
-  let decodedA; // AudioBuffer
-  let decodedB; // AudioBuffer
-  let renderedBuffer; // AudioBuffer of mashup
-  let renderedWavBlob; // Blob of exported WAV
+        let flangerOn = false;
+        let reverbOn = false;
+        let tracks = [];
+        let decodeCtx = null;
 
-  function ensureCtx() {
-    if (!audioContext) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    return audioContext;
-  }
+        function getDecodeCtx() {
+            if (!decodeCtx) decodeCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return decodeCtx;
+        }
 
-  function log(message, isError = false) {
-    const div = document.createElement('div');
-    div.className = 'msg' + (isError ? ' error' : '');
-    div.textContent = message;
-    messagesEl.prepend(div);
-  }
+        function showStatus(text, type = 'info', autoHide = true) {
+            statusMessage.textContent = text;
+            statusMessage.className = `status-message ${type}`;
+            statusMessage.style.display = 'block';
+            if (autoHide) setTimeout(() => { statusMessage.style.display = 'none'; }, 3000);
+        }
 
-  function updateButtons() {
-    const ready = !!decodedA && !!decodedB;
-    createBtn.disabled = !ready;
-    downloadBtn.disabled = !renderedWavBlob;
-  }
+        function updateUI() {
+            trackCountEl.textContent = tracks.length;
+            renderBtn.disabled = tracks.length < 2;
+            
+            if (tracks.length >= 5) {
+                uploadLabel.classList.add('disabled');
+                fileInput.disabled = true;
+            } else {
+                uploadLabel.classList.remove('disabled');
+                fileInput.disabled = false;
+            }
 
-  function formatSeconds(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  }
+            if (tracks.length === 0) {
+                infoText.textContent = 'Add 2-5 tracks to get started';
+            } else if (tracks.length === 1) {
+                infoText.textContent = 'Add at least 1 more track';
+            } else {
+                infoText.textContent = `Ready to create mashup with ${tracks.length} tracks`;
+            }
+        }
 
-  async function decodeFile(file) {
-    const arrayBuf = await file.arrayBuffer();
-    const ctx = ensureCtx();
-    return await ctx.decodeAudioData(arrayBuf.slice(0));
-  }
+        function renderTrackList() {
+            tracksListEl.innerHTML = '';
+            tracks.forEach((t, i) => {
+                const div = document.createElement('div');
+                div.className = 'track-item';
+                const dur = t.buffer ? `${t.buffer.duration.toFixed(1)}s` : 'loading...';
+                div.innerHTML = `
+                    <div class="track-info">
+                        <div class="track-name">${i + 1}. ${escapeHtml(t.name)}</div>
+                        <div class="track-details">${dur}</div>
+                    </div>
+                    <button class="remove-btn" data-index="${i}">Remove</button>
+                `;
+                tracksListEl.appendChild(div);
+            });
+            
+            document.querySelectorAll('.remove-btn').forEach(b => {
+                b.onclick = () => removeTrack(Number(b.dataset.index));
+            });
+            
+            updateUI();
+        }
 
-  function validateBuffers(aBuf, bBuf) {
-    if (!aBuf || !bBuf) return 'Both files must be valid audio files.';
-    if (aBuf.sampleRate !== bBuf.sampleRate) {
-      return 'Sample rates differ. Please choose files with the same sample rate.';
-    }
-    const minNeeded = 30; // needs at least 30s combined per track for A(0-15) and A(15-30)
-    if (aBuf.duration < 30 || bBuf.duration < 30) {
-      return 'Each track must be at least 30 seconds long.';
-    }
-    return null;
-  }
+        function escapeHtml(s = '') {
+            return s.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
 
-  function createEqGraph(ctx, destination) {
-    const input = ctx.createGain();
-    const lowShelf = ctx.createBiquadFilter();
-    lowShelf.type = 'lowshelf';
-    lowShelf.frequency.value = 120; // bass
-    const highShelf = ctx.createBiquadFilter();
-    highShelf.type = 'highshelf';
-    highShelf.frequency.value = 4000; // treble
+        fileInput.addEventListener('change', async (ev) => {
+            const f = ev.target.files && ev.target.files[0];
+            if (!f) return;
+            
+            if (tracks.length >= 5) {
+                showStatus('Maximum 5 tracks allowed', 'error');
+                fileInput.value = '';
+                return;
+            }
 
-    input.connect(lowShelf);
-    lowShelf.connect(highShelf);
-    highShelf.connect(destination);
+            const id = Date.now() + Math.floor(Math.random() * 1000);
+            const t = { id, name: f.name, file: f, url: URL.createObjectURL(f) };
+            tracks.push(t);
+            renderTrackList();
+            showStatus(`Loading ${f.name}...`, 'info');
 
-    return { input, lowShelf, highShelf };
-  }
+            try {
+                await decodeFileToBuffer(t);
+                showStatus(`Loaded ${f.name} (${t.buffer.duration.toFixed(1)}s)`, 'success');
+            } catch (err) {
+                console.error(err);
+                showStatus('Failed to decode file', 'error');
+                tracks = tracks.filter(x => x.id !== id);
+            } finally {
+                renderTrackList();
+                fileInput.value = '';
+            }
+        });
 
-  function copySegment(dest, destOffset, src, srcStart, length, channel) {
-    const destData = dest.getChannelData(channel);
-    const srcData = src.getChannelData(Math.min(channel, src.numberOfChannels - 1));
-    for (let i = 0; i < length; i++) {
-      destData[destOffset + i] = srcData[srcStart + i] || 0;
-    }
-  }
+        function removeTrack(i) {
+            const t = tracks[i];
+            if (t && t.url) URL.revokeObjectURL(t.url);
+            tracks.splice(i, 1);
+            renderTrackList();
+        }
 
-  function buildMashupBuffer(aBuf, bBuf) {
-    const sr = aBuf.sampleRate;
-    const segmentSec = 15;
-    const segmentFrames = Math.floor(segmentSec * sr);
+        async function decodeFileToBuffer(track) {
+            if (!track.arrayBuffer) track.arrayBuffer = await track.file.arrayBuffer();
+            const ctx = getDecodeCtx();
+            return new Promise((resolve, reject) => {
+                ctx.decodeAudioData(track.arrayBuffer.slice(0), buf => { track.buffer = buf; resolve(buf); }, err => reject(err));
+            });
+        }
 
-    const pattern = [
-      { buf: aBuf, startFrames: 0 },
-      { buf: bBuf, startFrames: 0 },
-      { buf: aBuf, startFrames: segmentFrames }, // next 15s of A
-      { buf: bBuf, startFrames: segmentFrames }, // next 15s of B
-    ];
+        async function prepareSegmentBuffers(buffers, perTrackLengthSec, targetSampleRate) {
+            const sr = targetSampleRate;
+            const segmentFrames = Math.floor(perTrackLengthSec * sr);
+            const segmentBuffers = [];
 
-    const totalFrames = segmentFrames * pattern.length;
-    const numChannels = Math.max(aBuf.numberOfChannels, bBuf.numberOfChannels);
-    const ctx = ensureCtx();
-    const out = ctx.createBuffer(numChannels, totalFrames, sr);
+            for (let i = 0; i < buffers.length; i++) {
+                let src = buffers[i];
+                if (src.sampleRate !== sr) src = await resampleAudioBuffer(src, sr);
+                const numCh = src.numberOfChannels;
+                const out = new OfflineAudioContext(numCh, segmentFrames, sr).createBuffer(numCh, segmentFrames, sr);
+                
+                // Analyze audio to find energetic sections
+                const energy = analyzeEnergy(src, sr);
+                const startFrame = selectBestSegment(energy, segmentFrames, src.length);
+                
+                for (let ch = 0; ch < numCh; ch++) {
+                    const outData = out.getChannelData(ch);
+                    const srcData = src.getChannelData(ch);
+                    for (let k = 0; k < segmentFrames; k++) {
+                        const sIdx = startFrame + k;
+                        outData[k] = (sIdx < srcData.length) ? srcData[sIdx] : 0;
+                    }
+                }
+                segmentBuffers.push(out);
+            }
+            return segmentBuffers;
+        }
 
-    for (let ch = 0; ch < numChannels; ch++) {
-      let writeOffset = 0;
-      for (const part of pattern) {
-        copySegment(out, writeOffset, part.buf, part.startFrames, segmentFrames, ch);
-        writeOffset += segmentFrames;
-      }
-    }
-    return out;
-  }
+        function analyzeEnergy(buffer, sampleRate) {
+            const windowSize = Math.floor(sampleRate * 0.5); // 500ms windows
+            const data = buffer.getChannelData(0);
+            const energyMap = [];
+            
+            for (let i = 0; i < data.length; i += windowSize) {
+                let sum = 0;
+                const end = Math.min(i + windowSize, data.length);
+                
+                for (let j = i; j < end; j++) {
+                    sum += Math.abs(data[j]);
+                }
+                energyMap.push({
+                    startFrame: i,
+                    energy: sum / (end - i)
+                });
+            }
+            return energyMap;
+        }
 
-  function renderBufferWithEqOffline(buffer, bassGainDb, trebleGainDb) {
-    const sr = buffer.sampleRate;
-    const offline = new OfflineAudioContext({
-      numberOfChannels: buffer.numberOfChannels,
-      length: buffer.length,
-      sampleRate: sr,
-    });
+        function selectBestSegment(energyMap, neededFrames, totalFrames) {
+            // Skip intro (first 15%) and outro (last 15%)
+            const skipStart = Math.floor(totalFrames * 0.15);
+            const skipEnd = Math.floor(totalFrames * 0.85);
+            
+            if (skipEnd - skipStart < neededFrames) {
+                // Song too short, use middle
+                return Math.max(0, Math.floor((totalFrames - neededFrames) / 2));
+            }
+            
+            // Find highest energy segment that fits
+            let maxEnergy = -1;
+            let bestStartFrame = skipStart;
+            
+            for (let i = 0; i < energyMap.length; i++) {
+                const startFrame = energyMap[i].startFrame;
+                const endFrame = startFrame + neededFrames;
+                
+                // Check if segment fits in usable range
+                if (startFrame >= skipStart && endFrame <= skipEnd && endFrame <= totalFrames) {
+                    // Calculate average energy for this segment
+                    let totalEnergy = 0;
+                    let count = 0;
+                    
+                    for (let j = i; j < energyMap.length; j++) {
+                        if (energyMap[j].startFrame < endFrame) {
+                            totalEnergy += energyMap[j].energy;
+                            count++;
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    const avgEnergy = count > 0 ? totalEnergy / count : 0;
+                    
+                    if (avgEnergy > maxEnergy) {
+                        maxEnergy = avgEnergy;
+                        bestStartFrame = startFrame;
+                    }
+                }
+            }
+            
+            return bestStartFrame;
+        }
 
-    const src = offline.createBufferSource();
-    src.buffer = buffer;
-    const low = offline.createBiquadFilter();
-    low.type = 'lowshelf';
-    low.frequency.value = 120;
-    low.gain.value = bassGainDb;
-    const high = offline.createBiquadFilter();
-    high.type = 'highshelf';
-    high.frequency.value = 4000;
-    high.gain.value = trebleGainDb;
+        async function resampleAudioBuffer(srcBuffer, targetSampleRate) {
+            if (srcBuffer.sampleRate === targetSampleRate) return srcBuffer;
+            const numChannels = srcBuffer.numberOfChannels;
+            const duration = srcBuffer.duration;
+            const offline = new OfflineAudioContext(numChannels, Math.ceil(duration * targetSampleRate), targetSampleRate);
+            const src = offline.createBufferSource();
+            src.buffer = srcBuffer;
+            src.connect(offline.destination);
+            src.start(0);
+            return await offline.startRendering();
+        }
 
-    src.connect(low);
-    low.connect(high);
-    high.connect(offline.destination);
-    src.start();
-    return offline.startRendering();
-  }
+        async function renderSegmentsWithEffects(segmentBuffers, totalDurationSec, crossfadeSec) {
+            const sr = segmentBuffers[0].sampleRate;
+            const totalFrames = Math.floor(totalDurationSec * sr);
+            const numChannels = Math.max(...segmentBuffers.map(b => b.numberOfChannels));
+            const offline = new OfflineAudioContext(numChannels, totalFrames, sr);
 
-  function encodeWAV(audioBuffer) {
-    const numChannels = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    const length = audioBuffer.length * numChannels * 2 + 44;
-    const buffer = new ArrayBuffer(length);
-    const view = new DataView(buffer);
+            const bass = offline.createBiquadFilter();
+            bass.type = 'lowshelf';
+            bass.frequency.value = 120;
+            bass.gain.value = Number(bassSlider.value) || 0;
 
-    function writeString(view, offset, string) {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    }
+            let echoNode = null;
+            const echoAmount = Number(echoSlider.value);
+            if (echoAmount > 0) {
+                const delay = offline.createDelay();
+                delay.delayTime.value = 0.3;
+                const feedback = offline.createGain();
+                feedback.gain.value = echoAmount / 200;
+                const mix = offline.createGain();
+                mix.gain.value = echoAmount / 100;
+                delay.connect(feedback).connect(delay);
+                delay.connect(mix);
+                echoNode = { input: delay, output: mix };
+            }
 
-    const channels = [];
-    for (let i = 0; i < numChannels; i++) {
-      channels.push(audioBuffer.getChannelData(i));
-    }
+            let flangerNode = null;
+            if (flangerOn) {
+                const delay = offline.createDelay();
+                delay.delayTime.value = 0.005;
+                const lfo = offline.createOscillator();
+                lfo.frequency.value = 0.5;
+                const lfoGain = offline.createGain();
+                lfoGain.gain.value = 0.002;
+                lfo.connect(lfoGain).connect(delay.delayTime);
+                lfo.start(0);
+                flangerNode = delay;
+            }
 
-    // RIFF header
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + audioBuffer.length * numChannels * 2, true);
-    writeString(view, 8, 'WAVE');
+            let reverbNode = null;
+            if (reverbOn) {
+                reverbNode = offline.createConvolver();
+                const ir = offline.createBuffer(2, sr * 2, sr);
+                for (let ch = 0; ch < 2; ch++) {
+                    const data = ir.getChannelData(ch);
+                    for (let i = 0; i < data.length; i++) {
+                        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+                    }
+                }
+                reverbNode.buffer = ir;
+            }
 
-    // fmt subchunk
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true); // PCM chunk size
-    view.setUint16(20, 1, true); // audio format = PCM
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * 2, true); // byte rate
-    view.setUint16(32, numChannels * 2, true); // block align
-    view.setUint16(34, 16, true); // bits per sample
+            const connectChain = (src) => {
+                let node = src;
+                node.connect(bass);
+                node = bass;
+                if (echoNode) {
+                    node.connect(echoNode.input);
+                    echoNode.output.connect(offline.destination);
+                }
+                if (flangerNode) {
+                    node.connect(flangerNode);
+                    node = flangerNode;
+                }
+                if (reverbNode) {
+                    node.connect(reverbNode);
+                    node = reverbNode;
+                }
+                node.connect(offline.destination);
+            };
 
-    // data subchunk
-    writeString(view, 36, 'data');
-    view.setUint32(40, audioBuffer.length * numChannels * 2, true);
+            const N = segmentBuffers.length;
+            const step = (totalDurationSec + (N - 1) * crossfadeSec) / N - crossfadeSec;
+            const startTimes = Array.from({ length: N }, (_, i) => i * step);
 
-    // interleave
-    let offset = 44;
-    for (let i = 0; i < audioBuffer.length; i++) {
-      for (let ch = 0; ch < numChannels; ch++) {
-        let sample = channels[ch][i];
-        sample = Math.max(-1, Math.min(1, sample));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-        offset += 2;
-      }
-    }
+            for (let i = 0; i < N; i++) {
+                const srcBuf = segmentBuffers[i];
+                const src = offline.createBufferSource();
+                src.buffer = srcBuf;
+                const gain = offline.createGain();
+                src.connect(gain);
+                connectChain(gain);
 
-    return new Blob([view], { type: 'audio/wav' });
-  }
+                const segDur = srcBuf.duration;
+                const cross = Math.min(crossfadeSec, segDur / 2);
+                const steps = 128;
+                const fadeIn = new Float32Array(steps).map((_, k) => Math.sin((k / (steps - 1)) * Math.PI / 2));
+                const fadeOut = new Float32Array(steps).map((_, k) => Math.cos((k / (steps - 1)) * Math.PI / 2));
+                
+                gain.gain.setValueAtTime(0, startTimes[i]);
+                gain.gain.setValueCurveAtTime(fadeIn, startTimes[i], cross);
+                const foStart = startTimes[i] + segDur - cross;
+                if (foStart > startTimes[i]) gain.gain.setValueCurveAtTime(fadeOut, foStart, cross);
 
-  function refreshEqLabels() {
-    bassValue.textContent = `${Number(bassSlider.value).toFixed(1)} dB`;
-    trebleValue.textContent = `${Number(trebleSlider.value).toFixed(1)} dB`;
-  }
+                src.start(startTimes[i]);
+            }
 
-  // Wire file inputs
-  fileAInput.addEventListener('change', async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    fileAName.textContent = file.name;
-    try {
-      decodedA = await decodeFile(file);
-      log(`Loaded A: ${file.name} (${formatSeconds(decodedA.duration)})`);
-    } catch (err) {
-      log('Failed to decode Audio A', true);
-    }
-    if (decodedA && decodedB) {
-      const errMsg = validateBuffers(decodedA, decodedB);
-      if (errMsg) log(errMsg, true);
-    }
-    updateButtons();
-  });
+            return await offline.startRendering();
+        }
 
-  fileBInput.addEventListener('change', async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    fileBName.textContent = file.name;
-    try {
-      decodedB = await decodeFile(file);
-      log(`Loaded B: ${file.name} (${formatSeconds(decodedB.duration)})`);
-    } catch (err) {
-      log('Failed to decode Audio B', true);
-    }
-    if (decodedA && decodedB) {
-      const errMsg = validateBuffers(decodedA, decodedB);
-      if (errMsg) log(errMsg, true);
-    }
-    updateButtons();
-  });
+        function encodeWAV(audioBuffer) {
+            const numChannels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
+            const length = audioBuffer.length * numChannels * 2 + 44;
+            const buffer = new ArrayBuffer(length);
+            const view = new DataView(buffer);
+            
+            function writeString(offset, str) {
+                for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+            }
+            
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + audioBuffer.length * numChannels * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * 2, true);
+            view.setUint16(32, numChannels * 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, audioBuffer.length * numChannels * 2, true);
+            
+            let offset = 44;
+            for (let i = 0; i < audioBuffer.length; i++) {
+                for (let ch = 0; ch < numChannels; ch++) {
+                    let sample = audioBuffer.getChannelData(ch)[i];
+                    sample = Math.max(-1, Math.min(1, sample));
+                    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+                    offset += 2;
+                }
+            }
+            return new Blob([view], { type: 'audio/wav' });
+        }
 
-  // Create Mashup
-  createBtn.addEventListener('click', async () => {
-    if (!decodedA || !decodedB) return;
-    const validation = validateBuffers(decodedA, decodedB);
-    if (validation) { log(validation, true); return; }
+        renderBtn.addEventListener('click', async () => {
+            try {
+                if (tracks.length < 2) throw new Error('Add at least 2 tracks');
+                
+                const totalDuration = Number(durationInput.value) || 30;
+                const buffers = tracks.map(t => t.buffer);
+                
+                showStatus('Preparing tracks...', 'info', false);
+                const segmentBuffers = await prepareSegmentBuffers(buffers, totalDuration / buffers.length, buffers[0].sampleRate);
+                
+                showStatus('Applying effects...', 'info', false);
+                const rendered = await renderSegmentsWithEffects(segmentBuffers, totalDuration, 1.5);
+                
+                showStatus('Encoding audio...', 'info', false);
+                const wavBlob = encodeWAV(rendered);
+                
+                const url = URL.createObjectURL(wavBlob);
+                previewAudioEl.src = url;
+                playerSection.style.display = 'block';
+                previewAudioEl.play().catch(() => {});
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `mashup-${Date.now()}.wav`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                
+                showStatus('✨ Mashup ready!', 'success');
+            } catch (err) {
+                console.error(err);
+                showStatus('Error: ' + err.message, 'error');
+            }
+        });
 
-    try {
-      log('Building mashup buffer...');
-      const combined = buildMashupBuffer(decodedA, decodedB);
-      renderedBuffer = await renderBufferWithEqOffline(
-        combined,
-        Number(bassSlider.value),
-        Number(trebleSlider.value)
-      );
-      renderedWavBlob = encodeWAV(renderedBuffer);
-      const url = URL.createObjectURL(renderedWavBlob);
-      previewEl.src = url;
-      downloadBtn.disabled = false;
-      log('Mashup ready. Preview updated.');
-    } catch (e) {
-      console.error(e);
-      log('Failed to create mashup.', true);
-    }
-  });
+        bassSlider.addEventListener('input', () => {
+            bassValue.textContent = bassSlider.value + ' dB';
+        });
 
-  // Download
-  downloadBtn.addEventListener('click', () => {
-    if (!renderedWavBlob) return;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(renderedWavBlob);
-    a.download = 'mashup.wav';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  });
+        echoSlider.addEventListener('input', () => {
+            echoValue.textContent = echoSlider.value + '%';
+        });
 
-  // Live EQ for preview when using decoded buffers directly in the future
-  refreshEqLabels();
-  bassSlider.addEventListener('input', refreshEqLabels);
-  trebleSlider.addEventListener('input', refreshEqLabels);
-})();
+        flangerBtn.addEventListener('click', () => {
+            flangerOn = !flangerOn;
+            flangerBtn.textContent = flangerOn ? 'ON' : 'OFF';
+            flangerBtn.classList.toggle('active');
+        });
 
+        reverbBtn.addEventListener('click', () => {
+            reverbOn = !reverbOn;
+            reverbBtn.textContent = reverbOn ? 'ON' : 'OFF';
+            reverbBtn.classList.toggle('active');
+        });
 
+        updateUI();
