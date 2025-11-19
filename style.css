@@ -33,14 +33,13 @@ body {
     perspective: 1000px;
 }
 
-/* --- Background (Now Static) --- */
+/* --- Background (Static) --- */
 .bg-orb {
     position: fixed;
     border-radius: 50%;
     filter: blur(120px); 
     z-index: -1;
     opacity: 0.7; 
-    /* Animation removed */
 }
 
 .orb-1 {
@@ -49,7 +48,6 @@ body {
     background: radial-gradient(circle, var(--primary), transparent 60%);
     top: -150px;
     left: -150px;
-    /* Animation delay removed */
 }
 
 .orb-2 {
@@ -58,10 +56,7 @@ body {
     background: radial-gradient(circle, var(--secondary), transparent 60%);
     bottom: -150px;
     right: -150px;
-    /* Animation delay removed */
 }
-
-/* @keyframes float is removed */
 
 /* --- Layout --- */
 .app {
@@ -76,10 +71,7 @@ body {
     flex-direction: column; 
     align-items: center; 
     margin-bottom: 20px;
-    /* Animation removed */
 }
-
-/* @keyframes slideInTop is removed */
 
 .header-title-group {
     display: flex;
@@ -95,11 +87,10 @@ body {
     -webkit-text-fill-color: transparent;
     margin-right: 15px; 
     margin-bottom: 0; 
-    text-shadow: 0 0 10px rgba(255, 0, 255, 0.5); 
-    /* Animation removed */
+    
+    /* 1. Glow reduction for icon */
+    text-shadow: 0 0 5px rgba(255, 0, 255, 0.5); 
 }
-
-/* @keyframes pulseGlow is removed */
 
 .header h1 {
     font-size: 2.5rem; 
@@ -107,14 +98,14 @@ body {
     letter-spacing: -1.5px;
     margin: 0; 
     color: var(--secondary);
+    
+    /* 1. Glow reduction for H1 */
     text-shadow: 
-        0 0 10px var(--secondary),
-        0 0 20px var(--secondary),
-        0 0 30px var(--secondary);
-    /* Animation removed */
+        0 0 5px var(--secondary), /* Reduced inner glow */
+        0 0 10px var(--secondary), /* Reduced medium glow */
+        0 0 15px var(--secondary); /* Reduced outer glow */
+    /* Animation is static, keeping the base shadow */
 }
-
-/* @keyframes cyanGlow is removed */
 
 .header p {
     color: var(--text-muted);
@@ -138,12 +129,8 @@ body {
 }
 
 .main-panel {
-    /* Animation removed (panelPopIn) */
     margin-bottom: 10px;
 }
-
-
-/* @keyframes panelPopIn is removed */
 
 .glass-panel:hover {
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
@@ -200,10 +187,7 @@ body {
     color: var(--secondary);
     margin-bottom: 12px;
     display: block;
-    /* Animation removed */
 }
-
-/* @keyframes iconBounce is removed */
 
 .upload-content span {
     color: var(--text-muted);
@@ -231,7 +215,6 @@ input[type="file"] {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* Animation removed (slideInRight) */
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     will-change: transform, box-shadow;
 }
@@ -241,12 +224,10 @@ input[type="file"] {
     box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
 }
 
-/* @keyframes slideInRight is removed */
-
 .track-info {
     flex: 1;
     min-width: 0;
-    margin-right: 15px; 
+    margin-right: 10px; /* Reduced space before button */
 }
 
 .track-name {
@@ -264,24 +245,27 @@ input[type="file"] {
     margin-top: 4px; 
 }
 
+/* 2. Remove Button Styling Fix */
 .remove-btn {
     background: rgba(255, 71, 87, 0.15);
     color: var(--danger);
     border: none;
-    width: 32px; 
-    height: 32px; 
+    width: 30px; /* Reduced width */
+    height: 30px; /* Reduced height */
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Added minimal padding and removed explicit width/height on the content */
+    padding: 0; 
+    font-size: 14px; /* Ensure icon size is readable */
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .remove-btn:hover {
     background: var(--danger);
     color: white;
-    /* Removed rotate(15deg) to stop continuous motion, kept scale for feedback */
     transform: scale(1.1);
 }
 
@@ -338,7 +322,8 @@ input[type="file"] {
     color: var(--accent-glow);
     font-weight: 600;
     font-family: 'Inter', monospace;
-    text-shadow: 0 0 5px rgba(255, 0, 255, 0.4); 
+    /* 1. Glow reduction for values */
+    text-shadow: 0 0 3px rgba(255, 0, 255, 0.4); 
 }
 
 /* --- Custom Inputs & Range Sliders (Styles retained) --- */
@@ -357,7 +342,8 @@ input[type="file"] {
 .styled-input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 10px rgba(112, 0, 255, 0.4); 
+    /* 1. Glow reduction for input focus */
+    box-shadow: 0 0 5px rgba(112, 0, 255, 0.4); 
 }
 
 input[type="range"] {
@@ -387,7 +373,8 @@ input[type="range"]::-webkit-slider-thumb {
     background: var(--primary);
     margin-top: -5.5px;
     cursor: pointer;
-    box-shadow: 0 0 12px rgba(112, 0, 255, 0.6), 0 0 4px rgba(255,255,255,0.8) inset; 
+    /* 1. Glow reduction for slider thumb */
+    box-shadow: 0 0 8px rgba(112, 0, 255, 0.6), 0 0 4px rgba(255,255,255,0.8) inset; 
     transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s;
 }
 
@@ -451,7 +438,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .toggle-btn.active {
     background: linear-gradient(90deg, var(--primary), var(--secondary));
-    box-shadow: 0 0 10px rgba(0, 212, 255, 0.5); 
+    /* 1. Glow reduction for active toggle */
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.5); 
 }
 
 .toggle-btn.active .toggle-circle {
@@ -483,9 +471,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
     padding: 16px; 
     border: none;
     border-radius: 14px; 
-    /* Static Gradient Background (Animation removed) */
     background: linear-gradient(90deg, var(--primary), var(--accent-glow), var(--secondary));
-    background-size: 100% 100%; /* Ensures it stays static */
+    background-size: 100% 100%; 
     color: white;
     font-size: 1.1rem; 
     font-weight: 700;
@@ -496,10 +483,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
     text-transform: uppercase;
     letter-spacing: 1.5px; 
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); 
-    /* Animation removed */
 }
-
-/* @keyframes gradientShift is removed */
 
 .render-btn:disabled {
     opacity: 0.4;
@@ -507,12 +491,12 @@ input[type="range"]::-webkit-slider-thumb:hover {
     background: #2c2c3a;
     box-shadow: none;
     transform: none;
-    /* Animation removed */
 }
 
 .render-btn:not(:disabled):hover {
     transform: translateY(-3px) scale(1.01); 
-    box-shadow: 0 10px 30px rgba(112, 0, 255, 0.6), 0 0 15px var(--accent-glow); 
+    /* 1. Glow reduction for button hover */
+    box-shadow: 0 10px 30px rgba(112, 0, 255, 0.4), 0 0 10px var(--accent-glow); 
     letter-spacing: 2.5px; 
 }
 
@@ -525,10 +509,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .render-btn .btn-content i {
     font-size: 1.2em; 
-    /* Animation removed (spinReverse) */
 }
-
-/* @keyframes spinReverse is removed */
 
 .btn-glow {
     position: absolute;
@@ -542,7 +523,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .render-btn:not(:disabled):hover .btn-glow {
-    /* Kept the instantaneous swipe on hover */
     left: 140%; 
     transition: 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
@@ -555,7 +535,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
     font-size: 0.95rem;
     font-weight: 500;
     display: none;
-    /* Animation removed */
 }
 .status-message.info { background: rgba(0, 212, 255, 0.2); color: var(--secondary); border: 1px solid var(--secondary); }
 .status-message.success { background: rgba(46, 213, 115, 0.2); color: var(--success); border: 1px solid var(--success); }
@@ -563,10 +542,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .player {
     display: none;
-    /* Animation removed (slideUp) */
 }
-
-/* @keyframes slideUp is removed */
 
 .player .section-title i {
     margin-right: 8px;
