@@ -1,494 +1,72 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Virtual DJ (with Blending)</title>
-    
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.4/dist/ffmpeg.min.js"></script>
 
-    <style>
-        /* --- Global Styles --- */
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-                sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            background-color: #1a1a1a;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        /* --- App Styles --- */
-        .container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 2rem;
-        }
-
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-            cursor: pointer;
-            font-size: 2rem;
-            text-align: center;
-        }
-
-        .dj-console {
-            background-color: #2c3e50;
-            color: #ecf0f1;
-            border-radius: 15px;
-            padding: 2rem 3rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 900px;
-            border: 2px solid #34495e;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-        }
-
-        header h1 {
-            text-align: center;
-            margin-bottom: 1rem;
-            color: #3498db;
-            font-size: 2.5rem;
-            letter-spacing: 2px;
-        }
-
-        .core-interface {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 2rem;
-        }
-
-        .track-deck {
-            background-color: #34495e;
-            padding: 1.5rem;
-            border-radius: 10px;
-            flex: 1;
-            text-align: center;
-        }
-
-        .track-deck h2 {
-            margin-top: 0;
-            color: #ecf0f1;
-        }
-
-        input[type="file"] {
-            color: #ecf0f1;
-        }
-
-        input[type="file"]::file-selector-button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        input[type="file"]::file-selector-button:hover {
-            background-color: #2980b9;
-        }
-
-        .bpm-label {
-            margin-top: 0.5rem;
-            color: #bdc3c7;
-            font-size: 0.95rem;
-        }
-
-        .master-controls {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .mashup-button {
-            background: linear-gradient(145deg, #e74c3c, #c0392b);
-            color: white;
-            border: none;
-            font-size: 1.2rem;
-            font-weight: bold;
-            padding: 15px 30px;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
-            transition: all 0.3s ease;
-        }
-
-        .mashup-button:hover:not(:disabled) {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(231, 76, 60, 0.6);
-        }
-
-        .mashup-button:disabled {
-            background: #7f8c8d;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .equalizer {
-            background-color: #34495e;
-            padding: 1.5rem;
-            border-radius: 10px;
-        }
-
-        .equalizer h2 {
-            text-align: center;
-            margin-top: 0;
-        }
-
-        .eq-sliders {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-        }
-
-        .slider-group {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: #bdc3c7;
-        }
-
-        .slider-group label {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 150px;
-            height: 8px;
-            background: #2c3e50;
-            border-radius: 5px;
-            outline: none;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            background: #3498db;
-            border-radius: 50%;
-            cursor: pointer;
-        }
-
-        input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            background: #3498db;
-            border-radius: 50%;
-            cursor: pointer;
-        }
-    </style>
+    <title>Multi-Track Mashup Creator</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="root"></div>
+    <div class="app">
+        <div class="header">
+            <h1>🎵 Audio Mashup Creator</h1>
+            <p>Mix 2-5 tracks with professional effects</p>
+        </div>
 
-    <script type="text/babel">
-        const { useState, useRef, useEffect } = React;
+        <div class="controls">
+            <div class="upload-section">
+                <h2 class="section-title">Tracks (<span id="trackCount">0</span>/5)</h2>
+                <label class="upload-btn" id="uploadLabel">
+                    📁 Add Track
+                    <input type="file" id="fileInput" accept="audio/*">
+                </label>
+            </div>
 
-        // Lightweight BPM + downbeat detector (onset autocorrelation)
-        async function detectBPMAndDownbeat(file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-            ctx.close();
-            const sr = buffer.sampleRate;
+            <div class="tracks-list" id="tracksList"></div>
 
-            const mono = new Float32Array(buffer.length);
-            const tmp = new Float32Array(buffer.length);
-            buffer.copyFromChannel(mono, 0);
-            for (let ch = 1; ch < buffer.numberOfChannels; ch++) {
-                buffer.copyFromChannel(tmp, ch);
-                for (let i = 0; i < mono.length; i++) mono[i] = 0.5 * (mono[i] + tmp[i]);
-            }
-
-            const targetRate = 11025;
-            const decim = Math.max(1, Math.round(sr / targetRate));
-            const dsLen = Math.floor(mono.length / decim);
-            const ds = new Float32Array(dsLen);
-            for (let i = 0; i < dsLen; i++) ds[i] = mono[i * decim];
-
-            // High-pass DC
-            const hp = new Float32Array(dsLen);
-            const rc = 1 / (2 * Math.PI * 100);
-            const dt = 1 / (sr / decim);
-            const alpha = rc / (rc + dt);
-            let py = 0, px = 0;
-            for (let i = 0; i < dsLen; i++) { const y = alpha * (py + ds[i] - px); hp[i] = y; py = y; px = ds[i]; }
-
-            // Frame energy -> onset
-            const frame = 1024, hop = 512;
-            const frames = Math.floor((hp.length - frame) / hop);
-            const energy = new Float32Array(frames);
-            for (let f = 0; f < frames; f++) {
-                let s = 0; const st = f * hop;
-                for (let i = 0; i < frame; i++) { const v = hp[st + i]; s += v * v; }
-                energy[f] = Math.log(1e-8 + s);
-            }
-            const onset = new Float32Array(frames);
-            for (let i = 1; i < frames; i++) {
-                const d = energy[i] - energy[i - 1];
-                onset[i] = d > 0 ? d : 0;
-            }
-
-            // Autocorrelation lag search
-            const minBPM = 60, maxBPM = 180;
-            const fps = (sr / decim) / hop;
-            const minLag = Math.round(fps * 60 / maxBPM);
-            const maxLag = Math.round(fps * 60 / minBPM);
-            let bestLag = minLag, best = -Infinity;
-            for (let lag = minLag; lag <= maxLag; lag++) {
-                let sum = 0; for (let i = lag; i < onset.length; i++) sum += onset[i] * onset[i - lag];
-                if (sum > best) { best = sum; bestLag = lag; }
-            }
-            let bpm = Math.round((60 * fps) / bestLag);
-            while (bpm < 80) bpm *= 2; while (bpm > 160) bpm /= 2;
-
-            // Downbeat phase estimate within one beat period (lag)
-            let phase = 0, pbest = -Infinity;
-            for (let p = 0; p < bestLag; p++) { let s = 0; for (let i = p; i < onset.length; i += bestLag) s += onset[i]; if (s > pbest) { pbest = s; phase = p; } }
-            const secPerFrame = hop / (sr / decim);
-            const downbeat = phase * secPerFrame;
-            return { bpm, downbeat };
-        }
-
-        function App() {
-            const [isReady, setIsReady] = useState(false);
-            const [isRendering, setIsRendering] = useState(false);
-            const [fileA, setFileA] = useState(null);
-            const [fileB, setFileB] = useState(null);
-            const [dataUrlA, setDataUrlA] = useState(null);
-            const [dataUrlB, setDataUrlB] = useState(null);
-            const [bpmA, setBpmA] = useState(null);
-            const [bpmB, setBpmB] = useState(null);
-            const [downA, setDownA] = useState(0);
-            const [downB, setDownB] = useState(0);
-            const eqRef = useRef(null);
-            const eqSettings = useRef({ bass: 0, mid: 0, treble: 0 });
-
-            useEffect(() => {
-                eqRef.current = new Tone.EQ3(0, 0, 0).toDestination();
-            }, []);
-
-            const startAudioContext = async () => {
-                if (!isReady) {
-                    await Tone.start();
-                    setIsReady(true);
-                }
-            };
-
-            const handleFileChange = async (event, which) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                if (!isReady) { alert('Click anywhere to start the audio context first!'); event.target.value = null; return; }
-                if (which === 'A') setFileA(file); else setFileB(file);
-
-                // Load player for realtime EQ preview (optional)
-                const url = URL.createObjectURL(file);
-                const player = new Tone.Player(url).connect(eqRef.current);
-                if (which === 'A') window.__playerA = player; else window.__playerB = player;
-
-                // Preload Data URL for reliable Offline rendering
-                const reader = new FileReader();
-                reader.onload = () => {
-                    if (which === 'A') setDataUrlA(reader.result); else setDataUrlB(reader.result);
-                };
-                reader.readAsDataURL(file);
-
-                // Detect BPM & downbeat and display
-                try {
-                    const { bpm, downbeat } = await detectBPMAndDownbeat(file);
-                    if (which === 'A') { setBpmA(bpm); setDownA(downbeat); }
-                    else { setBpmB(bpm); setDownB(downbeat); }
-                } catch (e) {
-                    console.error('Analysis error:', e);
-                    if (which === 'A') { setBpmA(null); setDownA(0); }
-                    else { setBpmB(null); setDownB(0); }
-                }
-            };
-
-            const handleEqChange = (type, value) => {
-                const db = parseInt(value, 10);
-                eqSettings.current[type] = db;
-                if (eqRef.current) {
-                    eqRef.current.low.value = eqSettings.current.bass;
-                    eqRef.current.mid.value = eqSettings.current.mid;
-                    eqRef.current.high.value = eqSettings.current.treble;
-                }
-            };
-
-            // Phrase-aware, tempo-synced, equal-power blended render
-            const createMashup = async () => {
-                if (!fileA || !fileB) { alert('Please load both audio tracks.'); return; }
-                if (!bpmA || !bpmB) { alert('Please wait for BPM detection.'); return; }
-                if (!dataUrlA || !dataUrlB) { alert('Please wait for files to finish loading.'); return; }
-                setIsRendering(true);
-
-                const targetBPM = bpmA; // treat A as master tempo
-                const beatsPerBar = 4;
-                const barsPlay = 8; // per phrase
-                const barsFade = 2; // crossfade length
-                const totalBeatsPlay = beatsPerBar * barsPlay;
-                const totalBeatsFade = beatsPerBar * barsFade;
-                const totalBeats = (totalBeatsPlay + totalBeatsFade) * 2 + beatsPerBar; // 2 phrases + 1 bar tail
-                const totalSeconds = (60 / targetBPM) * totalBeats + 0.5;
-
-                try {
-                    const rendered = await Tone.Offline(async ({ transport }) => {
-                        transport.bpm.value = targetBPM;
-                        transport.stop(); transport.position = 0;
-
-                        // Players using GrainPlayer for tempo-sync without pitch shift
-                        const gA = new Tone.GrainPlayer({ url: dataUrlA, loop: true, grainSize: 0.2, overlap: 0.1 });
-                        const gB = new Tone.GrainPlayer({ url: dataUrlB, loop: true, grainSize: 0.2, overlap: 0.1 });
-
-                        // Ensure buffers are loaded before scheduling
-                        await Tone.loaded();
-
-                        // Gains for equal-power crossfade control
-                        const gainA = new Tone.Gain(0);
-                        const gainB = new Tone.Gain(0);
-                        // EQ on master bus
-                        const eq = new Tone.EQ3({ low: eqSettings.current.bass, mid: eqSettings.current.mid, high: eqSettings.current.treble }).toDestination();
-                        gainA.connect(eq); gainB.connect(eq);
-                        gA.connect(gainA); gB.connect(gainB);
-
-                        // Tempo sync playback rates
-                        gA.playbackRate = targetBPM / bpmA;
-                        gB.playbackRate = targetBPM / bpmB;
-
-                        // Align to detected downbeats
-                        gA.sync().start(0, downA || 0);
-                        gB.sync().start(0, downB || 0);
-
-                        const secPerBeat = 60 / targetBPM;
-
-                        // Helper to schedule equal-power fade between two gains over N beats
-                        function scheduleEqualPowerCrossfade(startBeat, fadeBeats, fromAtoB) {
-                            const startTime = startBeat * secPerBeat;
-                            const dur = fadeBeats * secPerBeat;
-                            // equal-power: A = cos(theta), B = sin(theta)
-                            const steps = 64; // curve resolution
-                            const curveA = new Float32Array(steps);
-                            const curveB = new Float32Array(steps);
-                            for (let i = 0; i < steps; i++) {
-                                const t = i / (steps - 1);
-                                const theta = t * Math.PI / 2;
-                                const a = fromAtoB ? Math.cos(theta) : Math.sin(theta); // A: 1->0 when fromAtoB
-                                const b = fromAtoB ? Math.sin(theta) : Math.cos(theta); // B: 0->1 when fromAtoB
-                                curveA[i] = a;
-                                curveB[i] = b;
-                            }
-                            gainA.gain.cancelScheduledValues(startTime);
-                            gainB.gain.cancelScheduledValues(startTime);
-                            gainA.gain.setValueCurveAtTime(curveA, startTime, dur);
-                            gainB.gain.setValueCurveAtTime(curveB, startTime, dur);
-                        }
-
-                        // Set initial levels: A at 1, B at 0
-                        gainA.gain.setValueAtTime(1, 0);
-                        gainB.gain.setValueAtTime(0, 0);
-
-                        // Phrase 1: A plays for 8 bars, then crossfade 2 bars to B
-                        scheduleEqualPowerCrossfade(totalBeatsPlay, totalBeatsFade, true);
-
-                        // Phrase 2: after fade and 8 bars of B, crossfade back to A
-                        scheduleEqualPowerCrossfade(totalBeatsPlay + totalBeatsFade + totalBeatsPlay, totalBeatsFade, false);
-
-                        transport.start();
-                    }, totalSeconds);
-
-                    // Export WAV (rendered is an AudioBuffer)
-                    const wavBlob = bufferToWave(rendered);
-                    const url = URL.createObjectURL(wavBlob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none'; a.href = url; a.download = 'phrase-mix.wav';
-                    document.body.appendChild(a); a.click();
-                    window.URL.revokeObjectURL(url); document.body.removeChild(a);
-                } catch (e) {
-                    console.error('Render error:', e);
-                    alert('An error occurred while rendering the mashup.');
-                } finally {
-                    setIsRendering(false);
-                }
-            };
-
-            const bufferToWave = (abuffer) => {
-                const numOfChan = abuffer.numberOfChannels, length = abuffer.length * numOfChan * 2 + 44, buffer = new ArrayBuffer(length), view = new DataView(buffer), channels = [], sampleRate = abuffer.sampleRate;
-                let offset = 0, pos = 0;
-                const setUint16 = (data) => { view.setUint16(pos, data, true); pos += 2; };
-                const setUint32 = (data) => { view.setUint32(pos, data, true); pos += 4; };
-                setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157); setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan); setUint32(sampleRate); setUint32(sampleRate * 2 * numOfChan); setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164); setUint32(length - pos - 4);
-                for (let i = 0; i < abuffer.numberOfChannels; i++) channels.push(abuffer.getChannelData(i));
-                while (pos < length) { for (let i = 0; i < numOfChan; i++) { let sample = Math.max(-1, Math.min(1, channels[i][offset])); sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0; view.setInt16(pos, sample, true); pos += 2; } offset++; }
-                return new Blob([view], { type: "audio/wav" });
-            };
-
-            return (
-                <div className="container">
-                    {!isReady && ( <div className="overlay" onClick={startAudioContext}> <h1>Click anywhere to start</h1> </div> )}
-                    <div className="dj-console">
-                        <header> <h1>Virtual DJ 🎶</h1> </header>
-                        <main className="core-interface">
-                            <div className="track-deck">
-                                <h2>Track 1</h2>
-                                <input type="file" accept="audio/*" onChange={(e) => handleFileChange(e, 'A')} />
-                                <div className="bpm-label">{bpmA ? `BPM: ${bpmA}` : 'BPM: —'}</div>
-                            </div>
-                            <div className="master-controls">
-                                <button onClick={createMashup} disabled={!fileA || !fileB || !isReady || isRendering} className="mashup-button"> {isRendering ? 'Rendering...' : 'Create Mashup 🎛️'} </button>
-                            </div>
-                            <div className="track-deck">
-                                <h2>Track 2</h2>
-                                <input type="file" accept="audio/*" onChange={(e) => handleFileChange(e, 'B')} />
-                                <div className="bpm-label">{bpmB ? `BPM: ${bpmB}` : 'BPM: —'}</div>
-                            </div>
-                        </main>
-                        <footer className="equalizer">
-                            <h2>Equalizer</h2>
-                            <div className="eq-sliders">
-                                <div className="slider-group"> <label>Bass</label> <input type="range" min="-24" max="12" step="1" defaultValue="0" onChange={(e) => handleEqChange('bass', e.target.value)} /> </div>
-                                <div className="slider-group"> <label>Mid</label> <input type="range" min="-24" max="12" step="1" defaultValue="0" onChange={(e) => handleEqChange('mid', e.target.value)} /> </div>
-                                <div className="slider-group"> <label>Treble</label> <input type="range" min="-24" max="12" step="1" defaultValue="0" onChange={(e) => handleEqChange('treble', e.target.value)} /> </div>
-                            </div>
-                        </footer>
-                    </div>
+            <div class="settings-grid">
+                <div class="setting-group">
+                    <label for="duration">Duration (15-60s)</label>
+                    <input type="number" id="duration" min="15" max="60" value="30">
                 </div>
-            );
-        }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+                <div class="setting-group">
+                    <label for="bassBoost">Bass Boost: <span class="value-display" id="bassBoostValue">0 dB</span></label>
+                    <input type="range" id="bassBoost" min="-10" max="20" value="0" step="1">
+                </div>
+
+                <div class="setting-group">
+                    <label for="echoAmount">Echo: <span class="value-display" id="echoValue">0%</span></label>
+                    <input type="range" id="echoAmount" min="0" max="100" value="0" step="5">
+                </div>
+
+                <div class="setting-group">
+                    <label>Flanger Effect</label>
+                    <button class="effect-btn" id="flangerBtn">OFF</button>
+                </div>
+
+                <div class="setting-group">
+                    <label>Reverb Effect</label>
+                    <button class="effect-btn" id="reverbBtn">OFF</button>
+                </div>
+            </div>
+
+            <button class="render-btn" id="renderBtn" disabled>
+                🎛️ Create Mashup
+            </button>
+
+            <div class="status-message" id="statusMessage"></div>
+            <div class="info-text" id="infoText">Add 2-5 tracks to get started</div>
+        </div>
+
+        <div class="player" id="playerSection">
+            <h2 class="section-title">Preview</h2>
+            <audio id="preview" controls></audio>
+        </div>
+    </div>
+    <script src="app.js"></script>
 </body>
 </html>
-
-
